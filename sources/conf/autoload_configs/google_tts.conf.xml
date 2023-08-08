@@ -1,0 +1,25 @@
+<configuration name="google_tts.conf" description="">
+    <settings>
+        <param name="api-url" value="https://texttospeech.googleapis.com/v1/text:synthesize?fields=audioContent&key=${api-key}" />
+	<param name="api-key" value="---YOUR-API-KEY---" />
+        <param name="cache-path" value="/tmp/gcp-tts-cache" />
+
+	<!-- default gender, [male, female] -->
+        <param name="gender" value="female" />
+
+	<!-- encoding format: [mp3, wav, ulaw, alaw] -->
+        <param name="encoding-format" value="mp3" />
+
+	<!-- true for use a voiceName as an language code -->
+	<param name="voice-name-as-language-code" value="true" />
+
+	<!-- log GCP http errors -->
+	<param name="log-gcp-request-errors" value="false" />
+
+	<!-- curl requests timeout secs -->
+	<param name="request-timeout" value="10" />
+
+        <!-- <param name="user-agent" value="Mozilla/1.0" /> -->
+
+    </settings>
+</configuration>

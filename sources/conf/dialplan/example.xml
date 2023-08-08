@@ -1,0 +1,35 @@
+
+<!-- 
+     when the config option 'voice-name-as-language-code=true', you can use it for define language
+     Allow some short codes: [en, de, es, is, ru]
+     for other use BCP-47 (https://www.rfc-editor.org/rfc/bcp/bcp47.txt) 
+-->
+<extension name="google-tts">
+ <condition field="destination_number" expression="^(3111)$">
+  <action application="answer"/>
+  <action application="speak" data="google-tts|en|Hello world!"/>
+  <action application="hangup"/>
+ </condition>
+</extension>
+
+<!-- 
+    when 'voice-name-as-language-code=false' 
+-->
+<extension name="google-tts">
+ <condition field="destination_number" expression="^(3111)$">
+  <action application="answer"/>
+  <action application="speak" data="google-tts|male|{lang=en}Hello world!"/>
+  <action application="hangup"/>
+ </condition>
+</extension>
+
+<!-- 
+  redefine gender via tts-params
+ -->
+<extension name="google-tts">
+ <condition field="destination_number" expression="^(3111)$">
+  <action application="answer"/>
+  <action application="speak" data="google-tts|female|{lang=en, gender=male}Hello world!"/>
+  <action application="hangup"/>
+ </condition>
+</extension>
