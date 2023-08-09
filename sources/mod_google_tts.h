@@ -18,8 +18,9 @@
 #define false SWITCH_FALSE
 #endif
 
-#define VERSION  "1.0 (gcp-tts-api-v1_http)"
-#define LOG_BUF_MAX_LEN 2*1024
+#define VERSION             "1.0 (gcp-tts-api-v1_http)"
+#define LOG_BUF_MAX_LEN     2*1024
+//#define CURL_DEBUG_REQUESTS 1
 
 typedef struct {
     switch_memory_pool_t    *pool;
@@ -34,9 +35,7 @@ typedef struct {
     uint32_t                samplerate;
     uint32_t                channels;
     size_t                  pos_buffer_len;
-    uint8_t                 fl_delete_after;
     uint8_t                 fl_synth_success;
-    uint8_t                 fl_dont_delete_tmp;
 } tts_ctx_t;
 
 

@@ -17,6 +17,7 @@ static struct {
     uint32_t                request_timeout;
     uint8_t                 fl_voice_name_as_lang_code;
     uint8_t                 fl_log_gcp_request_error;
+    uint8_t                 fl_cache_disabled;
 } globals;
 
 SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load);
@@ -28,7 +29,7 @@ static void delete_file(tts_ctx_t *tts_ctx) {
     if(tts_ctx->tmp_file) {
         unlink(tts_ctx->tmp_file);
     }
-    if(tts_ctx->fl_delete_after && tts_ctx->dst_file) {
+    if(tts_ctx->dst_file && globals.fl_cache_disabled) {
         unlink(tts_ctx->dst_file);
     }
 }
@@ -192,7 +193,9 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     pdata = switch_mprintf("{'input':{'text':%s},'voice':{'languageCode':'%s','ssmlGender':'%s'},'audioConfig':{'audioEncoding':'%s', 'sampleRateHertz':'%d'}}",
                            qtext, tts_ctx->lang_code, (ygender ? ygender : xgender), globals.encoding_format, tts_ctx->samplerate );
 
-    // switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "CURL: URL=[%s], PDATA=[%s]\n", globals.api_url_ep, pdata);
+#ifdef CURL_DEBUG_REQUESTS
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "CURL: URL=[%s], PDATA=[%s]\n", globals.api_url_ep, pdata);
+#endif
 
     tts_ctx->pos_buffer_len = strlen(pdata);
     tts_ctx->post_buffer_ref = pdata;
@@ -223,7 +226,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     }
 
     if(switch_file_open(&tts_ctx->fd_tmp, tts_ctx->tmp_file, (SWITCH_FOPEN_WRITE | SWITCH_FOPEN_CREATE | SWITCH_FOPEN_TRUNCATE| SWITCH_FOPEN_BINARY), (SWITCH_FPROT_UREAD | SWITCH_FPROT_UWRITE), tts_ctx->pool) != SWITCH_STATUS_SUCCESS) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "couldn't create temporary file (%s)\n", tts_ctx->tmp_file);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't create temporary file (%s)\n", tts_ctx->tmp_file);
         status = SWITCH_STATUS_FALSE;
         goto out;
     }
@@ -250,7 +253,7 @@ out:
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------
-static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice, int rate, int channels, switch_speech_flag_t *flags) {
+static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice, int samplerate, int channels, switch_speech_flag_t *flags) {
     switch_status_t status = SWITCH_STATUS_SUCCESS;
     char name_uuid[SWITCH_UUID_FORMATTED_LENGTH + 1] = { 0 };
     tts_ctx_t *tts_ctx = NULL;
@@ -261,12 +264,15 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
     tts_ctx->voice_name = switch_core_strdup(tts_ctx->pool, voice);
     tts_ctx->lang_code = (globals.fl_voice_name_as_lang_code ?  lang2bcp47(voice) : "en-gb");
     tts_ctx->channels = channels;
-    tts_ctx->samplerate = rate;
+    tts_ctx->samplerate = samplerate;
     tts_ctx->dst_file = NULL;
-    tts_ctx->fl_dont_delete_tmp = false;
 
     switch_uuid_str((char *)name_uuid, sizeof(name_uuid));
     tts_ctx->tmp_file = switch_core_sprintf(tts_ctx->pool, "%s%s%s%s.bin", globals.tmp_path, SWITCH_PATH_SEPARATOR, "tmp-gcp-tts-", name_uuid);
+
+    if(globals.fl_cache_disabled) {
+        tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s", globals.cache_path, SWITCH_PATH_SEPARATOR, name_uuid, globals.file_ext);
+    }
 
     sh->private_info = tts_ctx;
 
@@ -293,8 +299,10 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
 
     assert(tts_ctx != NULL);
 
-    switch_md5_string(digest, (void *) text, strlen(text));
-    tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s", globals.cache_path, SWITCH_PATH_SEPARATOR, digest, globals.file_ext);
+    if(!tts_ctx->dst_file) {
+        switch_md5_string(digest, (void *) text, strlen(text));
+        tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s", globals.cache_path, SWITCH_PATH_SEPARATOR, digest, globals.file_ext);
+    }
 
     if(switch_file_exists(tts_ctx->dst_file, tts_ctx->pool) == SWITCH_STATUS_SUCCESS) {
         if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate, (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), NULL)) != SWITCH_STATUS_SUCCESS) {
@@ -339,20 +347,17 @@ static switch_status_t speech_read_tts(switch_speech_handle_t *sh, void *data, s
         if(tts_ctx->fl_synth_success) {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "file_interface == NULL (dst_file: %s)\n", tts_ctx->dst_file);
         }
-        delete_file(tts_ctx);
         return SWITCH_STATUS_FALSE;
     }
 
     if(switch_core_file_read(tts_ctx->fhnd, data, &len) != SWITCH_STATUS_SUCCESS) {
         switch_core_file_close(tts_ctx->fhnd);
-        delete_file(tts_ctx);
         return SWITCH_STATUS_FALSE;
     }
 
     *data_len = (len * 2);
     if(data_len == 0) {
         switch_core_file_close(tts_ctx->fhnd);
-        delete_file(tts_ctx);
         return SWITCH_STATUS_BREAK;
     }
 
@@ -426,6 +431,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
                 globals.fl_voice_name_as_lang_code = (strcasecmp(val, "true") == 0 ? true : false);
             } else if(!strcasecmp(var, "log-gcp-request-errors")) {
                 globals.fl_log_gcp_request_error = (strcasecmp(val, "true") == 0 ? true : false);
+            } else if(!strcasecmp(var, "cache-disable")) {
+                globals.fl_cache_disabled = (strcasecmp(val, "true") == 0 ? true : false);
             }
         }
     }
@@ -470,6 +477,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     speech_interface->speech_float_param_tts = speech_float_param_tts;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "GoogleTTS-%s\n", VERSION);
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "cache=%s, path=%s\n", (globals.fl_cache_disabled ? "disabled" : "enabled"), globals.cache_path);
 out:
     if(xml) {
         switch_xml_free(xml);

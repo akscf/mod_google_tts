@@ -2,7 +2,9 @@
     <settings>
         <param name="api-url" value="https://texttospeech.googleapis.com/v1/text:synthesize?fields=audioContent&key=${api-key}" />
 	<param name="api-key" value="---YOUR-API-KEY---" />
+
         <param name="cache-path" value="/tmp/gcp-tts-cache" />
+	<param name="cache-disable" value="false" />
 
 	<!-- default gender, [male, female] -->
         <param name="gender" value="female" />
