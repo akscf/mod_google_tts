@@ -14,7 +14,7 @@
 <extension name="google-tts">
  <condition field="destination_number" expression="^(3111)$">
   <action application="answer"/>
-  <action application="speak" data="google-tts|en|Hello world!"/>
+  <action application="speak" data="google|en|Hello world!"/>
   <action application="hangup"/>
  </condition>
 </extension>
@@ -26,7 +26,7 @@
 <extension name="google-tts">
  <condition field="destination_number" expression="^(3111)$">
   <action application="answer"/>
-  <action application="speak" data="google-tts|male|{lang=en}Hello world!"/>
+  <action application="speak" data="google|male|{lang=en}Hello world!"/>
   <action application="hangup"/>
  </condition>
 </extension>

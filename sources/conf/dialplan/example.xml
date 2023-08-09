@@ -7,7 +7,7 @@
 <extension name="google-tts">
  <condition field="destination_number" expression="^(3111)$">
   <action application="answer"/>
-  <action application="speak" data="google-tts|en|Hello world!"/>
+  <action application="speak" data="google|en|Hello world!"/>
   <action application="hangup"/>
  </condition>
 </extension>
@@ -16,7 +16,7 @@
 <extension name="google-tts">
  <condition field="destination_number" expression="^(3112)$">
   <action application="answer"/>
-  <action application="speak" data="google-tts|en-gb|Hello world!"/>
+  <action application="speak" data="google|en-gb|Hello world!"/>
   <action application="hangup"/>
  </condition>
 </extension>
@@ -28,7 +28,7 @@
 <extension name="google-tts">
  <condition field="destination_number" expression="^(3113)$">
   <action application="answer"/>
-  <action application="speak" data="google-tts|male|{lang=en}Hello world!"/>
+  <action application="speak" data="google|male|{lang=en}Hello world!"/>
   <action application="hangup"/>
  </condition>
 </extension>
@@ -40,7 +40,7 @@
 <extension name="google-tts">
  <condition field="destination_number" expression="^(3114)$">
   <action application="answer"/>
-  <action application="speak" data="google-tts|female|{lang=en, gender=male}Hello world!"/>
+  <action application="speak" data="google|female|{lang=en, gender=male}Hello world!"/>
   <action application="hangup"/>
  </condition>
 </extension>
