@@ -3,7 +3,7 @@
   There is also used a simple caching that decrease response time and  reaction, but don't forget to clean it with a helper script.
 </p>
 
-### Dialplan examples
+### Dialplan example
 [More](sources/conf/dialplan/example.xml)
 ```
 <!--
