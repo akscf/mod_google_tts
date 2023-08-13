@@ -262,7 +262,7 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
     tts_ctx->pool = sh->memory_pool;
     tts_ctx->fhnd = switch_core_alloc(tts_ctx->pool, sizeof(switch_file_handle_t));
     tts_ctx->voice_name = switch_core_strdup(tts_ctx->pool, voice);
-    tts_ctx->lang_code = (globals.fl_voice_name_as_lang_code ?  lang2bcp47(voice) : "en-gb");
+    tts_ctx->lang_code = (globals.fl_voice_name_as_lang_code && voice ? switch_core_strdup(sh->memory_pool, lang2bcp47(voice)) : "en-gb");
     tts_ctx->channels = channels;
     tts_ctx->samplerate = samplerate;
     tts_ctx->dst_file = NULL;
@@ -379,9 +379,13 @@ static void speech_text_param_tts(switch_speech_handle_t *sh, char *param, const
     assert(tts_ctx != NULL);
 
     if(strcasecmp(param, "lang") == 0) {
-        if(val) { tts_ctx->lang_code = lang2bcp47(val); }
+        if(val) { 
+	    tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, lang2bcp47(val));
+	}
     } else if(strcasecmp(param, "gender") == 0) {
-        if(val) { tts_ctx->gender = fmt_gemder2voice(val); }
+        if(val) { 
+	    tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, fmt_gemder2voice(val));
+	}
     }
 }
 
@@ -428,11 +432,11 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
             } else if(!strcasecmp(var, "request-timeout")) {
                 globals.request_timeout = atoi(val);
             } else if(!strcasecmp(var, "voice-name-as-language-code")) {
-                globals.fl_voice_name_as_lang_code = (strcasecmp(val, "true") == 0 ? true : false);
+                globals.fl_voice_name_as_lang_code = switch_true(val);
             } else if(!strcasecmp(var, "log-gcp-request-errors")) {
-                globals.fl_log_gcp_request_error = (strcasecmp(val, "true") == 0 ? true : false);
+                globals.fl_log_gcp_request_error = switch_true(val);
             } else if(!strcasecmp(var, "cache-disable")) {
-                globals.fl_cache_disabled = (strcasecmp(val, "true") == 0 ? true : false);
+                globals.fl_cache_disabled = switch_true(val);
             }
         }
     }
