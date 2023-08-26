@@ -1,6 +1,7 @@
 /**
- * Copyright (C) AlexandrinKS
+ * (C)2023 aks
  * https://akscf.me/
+ * https://github.com/akscf/
  **/
 #include "mod_google_tts.h"
 

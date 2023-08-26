@@ -1,6 +1,7 @@
 /**
- * Copyright (C) AlexandrinKS
+ * (C)2023 aks
  * https://akscf.me/
+ * https://github.com/akscf/
  **/
 #ifndef MOD_GOOGLE_TTS_H
 #define MOD_GOOGLE_TTS_H
