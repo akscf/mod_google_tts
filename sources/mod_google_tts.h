@@ -20,22 +20,23 @@
 #endif
 
 #define VERSION             "1.0 (gcp-tts-api-v1_http)"
-#define LOG_BUF_MAX_LEN     2*1024
+#define RECV_BUF_MAX        (2*1024*1024)
+#define BASE64_DEC_SZ(n)    ((n*3)/4)
+
 //#define CURL_DEBUG_REQUESTS 1
 
 typedef struct {
     switch_memory_pool_t    *pool;
     switch_file_handle_t    *fhnd;
-    switch_file_t           *fd_tmp;
-    char                    *post_buffer_ref;
+    switch_buffer_t         *curl_recv_buffer;
+    char                    *curl_send_buffer_ref;
     char                    *lang_code;
     char                    *gender;
     char                    *voice_name;
     char                    *dst_file;
-    char                    *tmp_file;
     uint32_t                samplerate;
     uint32_t                channels;
-    size_t                  pos_buffer_len;
+    size_t                  curl_send_buffer_len;
     uint8_t                 fl_synth_success;
 } tts_ctx_t;
 
