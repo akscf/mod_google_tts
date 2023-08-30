@@ -20,7 +20,7 @@
 #endif
 
 #define VERSION             "1.0 (gcp-tts-api-v1_http)"
-#define RECV_BUF_MAX        (2*1024*1024)
+#define FILE_SIZE_MAX       (2*1024*1024)
 #define BASE64_DEC_SZ(n)    ((n*3)/4)
 
 //#define CURL_DEBUG_REQUESTS 1

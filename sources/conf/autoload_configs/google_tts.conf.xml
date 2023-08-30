@@ -3,8 +3,9 @@
         <param name="api-url" value="https://texttospeech.googleapis.com/v1/text:synthesize?fields=audioContent&key=${api-key}" />
 	<param name="api-key" value="---YOUR-API-KEY---" />
 	<param name="request-timeout" value="10" />
+	<param name="file-size-max" value="2097152" />
 	<param name="log-gcp-request-errors" value="false" />
-    <!-- <param name="user-agent" value="Mozilla/1.0" /> -->
+   <!-- <param name="user-agent" value="Mozilla/1.0" /> -->
 
         <param name="cache-path" value="/tmp/gcp-tts-cache" />
 	<param name="cache-disable" value="false" />

@@ -15,6 +15,7 @@ static struct {
     const char              *api_url;
     const char              *api_key;
     char                    *api_url_ep;
+    uint32_t                file_size_max;
     uint32_t                request_timeout;
     uint8_t                 fl_voice_name_as_lang_code;
     uint8_t                 fl_log_gcp_request_error;
@@ -201,7 +202,7 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
 
     sh->private_info = tts_ctx;
 
-    if((status = switch_buffer_create_dynamic(&tts_ctx->curl_recv_buffer, 1024, 8192, RECV_BUF_MAX)) != SWITCH_STATUS_SUCCESS) {
+    if((status = switch_buffer_create_dynamic(&tts_ctx->curl_recv_buffer, 1024, 8192, globals.file_size_max)) != SWITCH_STATUS_SUCCESS) {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "switch_buffer_create_dynamic() fail\n");
     }
 
@@ -372,6 +373,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
                 if(val) globals.fl_log_gcp_request_error = switch_true(val);
             } else if(!strcasecmp(var, "cache-disable")) {
                 if(val) globals.fl_cache_disabled = switch_true(val);
+            } else if(!strcasecmp(var, "file-size-max")) {
+                if(val) globals.file_size_max = atoi(val);
             }
         }
     }
@@ -390,6 +393,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     globals.cache_path = (globals.cache_path == NULL ? "/tmp/gcp-tts-cache" : globals.cache_path);
     globals.opt_gender = fmt_gemder2voice( (globals.opt_gender == NULL ? "female" : globals.opt_gender) );
     globals.opt_encoding = fmt_enct2enct( (globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding) );
+    globals.file_size_max = globals.file_size_max > 0 ? globals.file_size_max : FILE_SIZE_MAX;
     globals.file_ext = fmt_enct2fext(globals.opt_encoding);
 
     if(!globals.api_url_ep) {
@@ -400,7 +404,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
         switch_dir_make(globals.cache_path, SWITCH_FPROT_OS_DEFAULT, NULL);
     }
 
-    // -------------------------
     *module_interface = switch_loadable_module_create_module_interface(pool, modname);
     speech_interface = switch_loadable_module_create_interface(*module_interface, SWITCH_SPEECH_INTERFACE);
     speech_interface->interface_name = "google";
@@ -416,7 +419,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     speech_interface->speech_float_param_tts = speech_float_param_tts;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "GoogleTTS-%s\n", VERSION);
-    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "cache-%s (%s)\n", (globals.fl_cache_disabled ? "disabled" : "enabled"), globals.cache_path);
 out:
     if(xml) {
         switch_xml_free(xml);
