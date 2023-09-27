@@ -61,7 +61,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     switch_status_t status = SWITCH_STATUS_SUCCESS;
     CURL *chnd = NULL;
     switch_curl_slist_t *headers = NULL;
-    switch_CURLcode http_resp = 0;
+    long http_resp = 0;
     const char *xgender = (tts_ctx->gender ? tts_ctx->gender : globals.opt_gender);
     const char *ygender = (!globals.fl_voice_name_as_lang_code && tts_ctx->voice_name) ? tts_ctx->voice_name : NULL;
     char *pdata = NULL;
@@ -108,7 +108,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     switch_curl_easy_getinfo(chnd, CURLINFO_RESPONSE_CODE, &http_resp);
 
     if(http_resp != 200) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "http-error=[%d] (%s)\n", http_resp, globals.api_url);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "http-error=[%ld] (%s)\n", http_resp, globals.api_url);
         status = SWITCH_STATUS_FALSE;
     }
 
