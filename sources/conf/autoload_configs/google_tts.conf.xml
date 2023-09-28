@@ -5,6 +5,8 @@
 	<param name="request-timeout" value="10" />
 	<param name="file-size-max" value="2097152" />
 	<param name="log-gcp-request-errors" value="false" />
+   <!-- <param name="proxy" value="http://proxy:port" /> -->
+   <!-- <param name="proxy-credentials" value="" /> -->
    <!-- <param name="user-agent" value="Mozilla/1.0" /> -->
 
         <param name="cache-path" value="/tmp/gcp-tts-cache" />
