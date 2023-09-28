@@ -2,6 +2,7 @@
     <settings>
         <param name="api-url" value="https://texttospeech.googleapis.com/v1/text:synthesize?fields=audioContent&key=${api-key}" />
 	<param name="api-key" value="---YOUR-API-KEY---" />
+	<param name="connect-timeout" value="10" />
 	<param name="request-timeout" value="10" />
 	<param name="file-size-max" value="2097152" />
 	<param name="log-gcp-request-errors" value="false" />

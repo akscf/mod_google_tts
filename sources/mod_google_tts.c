@@ -18,7 +18,8 @@ static struct {
     const char              *proxy_credentials;
     char                    *api_url_ep;
     uint32_t                file_size_max;
-    uint32_t                request_timeout;
+    uint32_t                request_timeout; // seconds
+    uint32_t                connect_timeout; // seconds
     uint8_t                 fl_voice_name_as_lang_code;
     uint8_t                 fl_log_gcp_request_error;
     uint8_t                 fl_cache_disabled;
@@ -94,6 +95,9 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_io_write_callback);
     switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) tts_ctx);
 
+    if(globals.connect_timeout > 0) {
+        switch_curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, globals.connect_timeout);
+    }
     if(globals.request_timeout > 0) {
         switch_curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, globals.request_timeout);
     }
@@ -389,6 +393,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
                 if(val) globals.user_agent = switch_core_strdup(pool, val);
             } else if(!strcasecmp(var, "request-timeout")) {
                 if(val) globals.request_timeout = atoi(val);
+            } else if(!strcasecmp(var, "connect-timeout")) {
+                if(val) globals.connect_timeout = atoi(val);
             } else if(!strcasecmp(var, "voice-name-as-language-code")) {
                 if(val) globals.fl_voice_name_as_lang_code = switch_true(val);
             } else if(!strcasecmp(var, "log-gcp-request-errors")) {
