@@ -70,11 +70,19 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     const char *ygender = (!globals.fl_voice_name_as_lang_code && tts_ctx->voice_name) ? tts_ctx->voice_name : NULL;
     char *pdata = NULL;
     char *qtext = NULL;
+    cJSON *jstr = NULL;
 
-    qtext = switch_util_quote_shell_arg(text);
-    pdata = switch_mprintf("{'input':{'text':%s},'voice':{'languageCode':'%s','ssmlGender':'%s'},'audioConfig':{'audioEncoding':'%s', 'sampleRateHertz':'%d'}}",
-                           qtext, tts_ctx->lang_code, (ygender ? ygender : xgender),
-                           globals.opt_encoding, tts_ctx->samplerate
+    if(text) {
+        jstr = cJSON_CreateString(text);
+        qtext = cJSON_PrintUnformatted(jstr);
+        cJSON_Delete(jstr);
+    }
+    pdata = switch_mprintf("{\"input\":{\"text\":%s},\"voice\":{\"languageCode\":\"%s\",\"ssmlGender\":\"%s\"},\"audioConfig\":{\"audioEncoding\":\"%s\", \"sampleRateHertz\":\"%d\"}}",
+                           (qtext ? qtext : "null"),
+                           tts_ctx->lang_code,
+                           (ygender ? ygender : xgender),
+                           globals.opt_encoding,
+                           tts_ctx->samplerate
             );
 
 #ifdef CURL_DEBUG_REQUESTS
@@ -85,13 +93,16 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     tts_ctx->curl_send_buffer_ref = pdata;
 
     curl_handle = switch_curl_easy_init();
-    headers = switch_curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
 
     switch_curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
     switch_curl_easy_setopt(curl_handle, CURLOPT_POST, 1);
     switch_curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1);
+
+    switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, tts_ctx->curl_send_buffer_len);
+    switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, (void *) pdata);
     switch_curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, curl_io_read_callback);
     switch_curl_easy_setopt(curl_handle, CURLOPT_READDATA, (void *) tts_ctx);
+
     switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_io_write_callback);
     switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) tts_ctx);
 
@@ -119,6 +130,8 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
         switch_curl_easy_setopt(curl_handle, CURLOPT_PROXY, globals.proxy);
     }
 
+    headers = switch_curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
+    headers = switch_curl_slist_append(headers, "Expect:");
     switch_curl_easy_setopt(curl_handle, CURLOPT_URL, globals.api_url_ep);
 
     curl_ret = switch_curl_easy_perform(curl_handle);
