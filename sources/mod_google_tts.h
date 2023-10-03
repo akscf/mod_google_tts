@@ -48,4 +48,6 @@ char *fmt_enct2enct(const char *fmt);
 char *fmt_enct2fext(const char *fmt);
 char *strnstr(const char *s, const char *find, size_t slen);
 
+char *escape_squotes(const char *string);
+
 #endif

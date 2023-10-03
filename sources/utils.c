@@ -60,3 +60,39 @@ char *strnstr(const char *s, const char *find, size_t slen) {
 	}
 	return ((char *)s);
 }
+
+/*
+ * based on switch_utils.c
+ */
+char *escape_squotes(const char *string) {
+    size_t string_len = strlen(string);
+    size_t i;
+    size_t n = 0;
+    size_t dest_len = 0;
+    char *dest;
+
+    dest_len = strlen(string) + 1;
+    for (i = 0; i < string_len; i++) {
+        switch (string[i]) {
+            case '\'': dest_len += 1; break;
+        }
+    }
+
+    dest = (char *) malloc(sizeof(char) * dest_len);
+    switch_assert(dest);
+
+    for (i = 0; i < string_len; i++) {
+        switch (string[i]) {
+            case '\'':
+                dest[n++] = '\\';
+                dest[n++] = '\'';
+            break;
+            default:
+                dest[n++] = string[i];
+        }
+    }
+    dest[n++] = '\0';
+
+    switch_assert(n == dest_len);
+    return dest;
+}
