@@ -1,5 +1,5 @@
 <p>
-  Freeswitch TTS module for the Google cloud Text-to-Speech service, based on v1-rest api. <br>
+  Provides Google TTS service for the Freeswitch (based on v1-rest api) <br>
 </p>
 
 ### Usage example

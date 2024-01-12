@@ -1,6 +1,5 @@
 /**
  * (C)2023 aks
- * https://akscf.me/
  * https://github.com/akscf/
  **/
 #ifndef MOD_GOOGLE_TTS_H
@@ -37,7 +36,6 @@ typedef struct {
     uint32_t                samplerate;
     uint32_t                channels;
     size_t                  curl_send_buffer_len;
-    uint8_t                 fl_synth_success;
 } tts_ctx_t;
 
 

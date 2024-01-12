@@ -1,6 +1,5 @@
 /**
  * (C)2023 aks
- * https://akscf.me/
  * https://github.com/akscf/
  **/
 #include "mod_google_tts.h"
@@ -18,23 +17,16 @@ static struct {
     const char              *proxy_credentials;
     char                    *api_url_ep;
     uint32_t                file_size_max;
-    uint32_t                request_timeout; // seconds
-    uint32_t                connect_timeout; // seconds
-    uint8_t                 fl_voice_name_as_lang_code;
-    uint8_t                 fl_log_gcp_request_error;
-    uint8_t                 fl_cache_disabled;
+    uint32_t                request_timeout;        // seconds
+    uint32_t                connect_timeout;        // seconds
+    uint8_t                 fl_voice_name_as_lang;
+    uint8_t                 fl_log_http_error;
+    uint8_t                 fl_cache_enabled;
 } globals;
 
 SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load);
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_google_tts_shutdown);
 SWITCH_MODULE_DEFINITION(mod_google_tts, mod_google_tts_load, mod_google_tts_shutdown, NULL);
-
-// ---------------------------------------------------------------------------------------------------------------------------------------------
-static void delete_files(tts_ctx_t *tts_ctx) {
-    if(tts_ctx->dst_file && globals.fl_cache_disabled) {
-        unlink(tts_ctx->dst_file);
-    }
-}
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 static size_t curl_io_write_callback(char *buffer, size_t size, size_t nitems, void *user_data) {
@@ -67,7 +59,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     switch_CURLcode curl_ret = 0;
     long http_resp = 0;
     const char *xgender = (tts_ctx->gender ? tts_ctx->gender : globals.opt_gender);
-    const char *ygender = (!globals.fl_voice_name_as_lang_code && tts_ctx->voice_name) ? tts_ctx->voice_name : NULL;
+    const char *ygender = (!globals.fl_voice_name_as_lang && tts_ctx->voice_name) ? tts_ctx->voice_name : NULL;
     char *pdata = NULL;
     char *qtext = NULL;
 
@@ -228,7 +220,7 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
     tts_ctx->pool = sh->memory_pool;
     tts_ctx->fhnd = switch_core_alloc(tts_ctx->pool, sizeof(switch_file_handle_t));
     tts_ctx->voice_name = switch_core_strdup(tts_ctx->pool, voice);
-    tts_ctx->lang_code = (globals.fl_voice_name_as_lang_code && voice ? switch_core_strdup(sh->memory_pool, lang2bcp47(voice)) : "en-gb");
+    tts_ctx->lang_code = (globals.fl_voice_name_as_lang && voice ? switch_core_strdup(sh->memory_pool, lang2bcp47(voice)) : "en-gb");
     tts_ctx->channels = channels;
     tts_ctx->samplerate = samplerate;
     tts_ctx->dst_file = NULL;
@@ -239,7 +231,7 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "switch_buffer_create_dynamic() fail\n");
     }
 
-    if(globals.fl_cache_disabled) {
+    if(!globals.fl_cache_enabled) {
         switch_uuid_str((char *)name_uuid, sizeof(name_uuid));
         tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s", globals.cache_path, SWITCH_PATH_SEPARATOR, name_uuid, globals.file_ext);
     }
@@ -259,7 +251,9 @@ static switch_status_t speech_close(switch_speech_handle_t *sh, switch_speech_fl
         switch_buffer_destroy(&tts_ctx->curl_recv_buffer);
     }
 
-    delete_files(tts_ctx);
+    if(tts_ctx->dst_file && !globals.fl_cache_enabled) {
+        unlink(tts_ctx->dst_file);
+    }
 
     return SWITCH_STATUS_SUCCESS;
 }
@@ -270,7 +264,6 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
     char digest[SWITCH_MD5_DIGEST_STRING_SIZE + 1] = { 0 };
     const void *ptr = NULL;
     uint32_t recv_len = 0;
-    cJSON *json = NULL;
 
     assert(tts_ctx != NULL);
 
@@ -293,7 +286,6 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
             if((status = extract_audio(tts_ctx, (char *)ptr, recv_len)) == SWITCH_STATUS_SUCCESS) {
                 if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate, (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), NULL)) != SWITCH_STATUS_SUCCESS) {
                     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't open file: %s\n", tts_ctx->dst_file);
-                    status = SWITCH_STATUS_FALSE;
                     goto out;
                 }
             } else {
@@ -301,8 +293,8 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
                 status = SWITCH_STATUS_FALSE;
             }
         } else {
-            if(globals.fl_log_gcp_request_error && recv_len > 0) {
-                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "GCP-FAULT: %s\n", (char *)ptr);
+            if(globals.fl_log_http_error && recv_len > 0) {
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Service response: %s\n", (char *)ptr);
             }
         }
     }
@@ -317,9 +309,6 @@ static switch_status_t speech_read_tts(switch_speech_handle_t *sh, void *data, s
     assert(tts_ctx != NULL);
 
     if(tts_ctx->fhnd->file_interface == NULL) {
-        if(tts_ctx->fl_synth_success) {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "file_interface == NULL (dst_file: %s)\n", tts_ctx->dst_file);
-        }
         return SWITCH_STATUS_FALSE;
     }
 
@@ -402,12 +391,12 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
                 if(val) globals.request_timeout = atoi(val);
             } else if(!strcasecmp(var, "connect-timeout")) {
                 if(val) globals.connect_timeout = atoi(val);
-            } else if(!strcasecmp(var, "voice-name-as-language-code")) {
-                if(val) globals.fl_voice_name_as_lang_code = switch_true(val);
-            } else if(!strcasecmp(var, "log-gcp-request-errors")) {
-                if(val) globals.fl_log_gcp_request_error = switch_true(val);
-            } else if(!strcasecmp(var, "cache-disable")) {
-                if(val) globals.fl_cache_disabled = switch_true(val);
+            } else if(!strcasecmp(var, "voice-name-as-language")) {
+                if(val) globals.fl_voice_name_as_lang = switch_true(val);
+            } else if(!strcasecmp(var, "log-http-errors")) {
+                if(val) globals.fl_log_http_error = switch_true(val);
+            } else if(!strcasecmp(var, "cache-enable")) {
+                if(val) globals.fl_cache_enabled = switch_true(val);
             } else if(!strcasecmp(var, "file-size-max")) {
                 if(val) globals.file_size_max = atoi(val);
             } else if(!strcasecmp(var, "proxy")) {
@@ -429,7 +418,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
 
     globals.tmp_path = SWITCH_GLOBAL_dirs.temp_dir;
     globals.api_url_ep = switch_string_replace(globals.api_url, "${api-key}", globals.api_key);
-    globals.cache_path = (globals.cache_path == NULL ? "/tmp/gcp-tts-cache" : globals.cache_path);
+    globals.cache_path = (globals.cache_path == NULL ? "/tmp/google-tts-cache" : globals.cache_path);
     globals.opt_gender = fmt_gemder2voice( (globals.opt_gender == NULL ? "female" : globals.opt_gender) );
     globals.opt_encoding = fmt_enct2enct( (globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding) );
     globals.file_size_max = globals.file_size_max > 0 ? globals.file_size_max : FILE_SIZE_MAX;
