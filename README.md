@@ -3,7 +3,7 @@
 </p>
 
 ### Usage example
-```
+```XML
 <extension name="tts-test">
     <condition field="destination_number" expression="^(3333)$">
 	<action application="answer"/>
