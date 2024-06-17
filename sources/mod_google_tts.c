@@ -1,7 +1,28 @@
-/**
- * (C)2023 aks
- * https://github.com/akscf/
- **/
+/*
+ * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
+ * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
+ *
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * Module Contributor(s):
+ *  Konstantin Alexandrin <akscfx@gmail.com>
+ *
+ *
+ * mod_google_tts.c -- google tts service interface
+ *
+ * Provides an interface to use the Google TTS service in the Freeswitch.
+ *
+ */
 #include "mod_google_tts.h"
 
 static struct {
@@ -28,7 +49,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load);
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_google_tts_shutdown);
 SWITCH_MODULE_DEFINITION(mod_google_tts, mod_google_tts_load, mod_google_tts_shutdown, NULL);
 
-// ---------------------------------------------------------------------------------------------------------------------------------------------
+
 static size_t curl_io_write_callback(char *buffer, size_t size, size_t nitems, void *user_data) {
     tts_ctx_t *tts_ctx = (tts_ctx_t *)user_data;
     size_t len = (size * nitems);
@@ -66,11 +87,17 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     if(text) {
         qtext = escape_squotes(text);
     }
-    pdata = switch_mprintf("{'input':{'text':'%s'},'voice':{'languageCode':'%s','ssmlGender':'%s'},'audioConfig':{'audioEncoding':'%s', 'sampleRateHertz':'%d'}}\n\n",
-                           (qtext ? qtext : ""), tts_ctx->lang_code, (ygender ? ygender : xgender), globals.opt_encoding, tts_ctx->samplerate
+
+    pdata = switch_mprintf(
+                "{'input':{'text':'%s'},'voice':{'ssmlGender':'%s', 'languageCode':'%s'},'audioConfig':{'audioEncoding':'%s', 'sampleRateHertz':'%d'}}\n\n",
+                qtext ? qtext : "",
+                ygender ? ygender : xgender,
+                tts_ctx->lang_code,
+                globals.opt_encoding,
+                tts_ctx->samplerate
             );
 
-#ifdef CURL_DEBUG_REQUESTS
+#ifdef GTTS_DEBUG
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "CURL: URL=[%s], PDATA=[%s]\n", globals.api_url_ep, pdata);
 #endif
 
@@ -87,12 +114,12 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     switch_curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1);
 
     switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, tts_ctx->curl_send_buffer_len);
-    switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, (void *) pdata);
+    switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, (void *)pdata);
     switch_curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, curl_io_read_callback);
-    switch_curl_easy_setopt(curl_handle, CURLOPT_READDATA, (void *) tts_ctx);
+    switch_curl_easy_setopt(curl_handle, CURLOPT_READDATA, (void *)tts_ctx);
 
     switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_io_write_callback);
-    switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) tts_ctx);
+    switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)tts_ctx);
 
     if(globals.connect_timeout > 0) {
         switch_curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, globals.connect_timeout);
@@ -138,7 +165,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
             switch_buffer_write(tts_ctx->curl_recv_buffer, "\0", 1);
         }
     }
-out:
+
     if(curl_handle) { switch_curl_easy_cleanup(curl_handle); }
     if(headers) { switch_curl_slist_free_all(headers); }
 
@@ -183,26 +210,30 @@ static switch_status_t extract_audio(tts_ctx_t *tts_ctx, char *buf_in, uint32_t 
     }
 
     if((buf_out = switch_core_alloc(pool, dec_len)) == NULL) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "mem fail\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "switch_core_alloc() failed\n");
         switch_goto_status(SWITCH_STATUS_GENERR, out);
     }
 
     len = switch_b64_decode(ptr, buf_out, dec_len);
     if(len != dec_len) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "len != dec_len (%d / %d)\n", (uint32_t) len, (uint32_t) dec_len);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "b64_decode: (len != dec_len)\n");
         dec_len = len;
     }
 
-    if(switch_file_open(&fd, tts_ctx->dst_file, (SWITCH_FOPEN_WRITE | SWITCH_FOPEN_CREATE | SWITCH_FOPEN_TRUNCATE| SWITCH_FOPEN_BINARY), (SWITCH_FPROT_UREAD | SWITCH_FPROT_UWRITE), pool) != SWITCH_STATUS_SUCCESS) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Couldn't create output file (%s)\n", tts_ctx->dst_file);
+    status = switch_file_open(&fd, tts_ctx->dst_file,
+                              (SWITCH_FOPEN_WRITE | SWITCH_FOPEN_CREATE | SWITCH_FOPEN_TRUNCATE | SWITCH_FOPEN_BINARY),
+                              (SWITCH_FPROT_UREAD | SWITCH_FPROT_UWRITE), pool);
+    if(status != SWITCH_STATUS_SUCCESS) {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Unable to create output file (%s)\n", tts_ctx->dst_file);
         switch_goto_status(SWITCH_STATUS_FALSE, out);
     }
 
     status = switch_file_write(fd, buf_out, &len);
     if(status != SWITCH_STATUS_SUCCESS || len != dec_len) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Couldn't write into file (%s)\n", tts_ctx->dst_file);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Unable to write into file (%s)\n", tts_ctx->dst_file);
         switch_goto_status(SWITCH_STATUS_FALSE, out);
     }
+
 out:
     if(fd) {
         switch_file_close(fd);
@@ -210,6 +241,8 @@ out:
     return status;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// speech api
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice, int samplerate, int channels, switch_speech_flag_t *flags) {
     switch_status_t status = SWITCH_STATUS_SUCCESS;
@@ -220,7 +253,7 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
     tts_ctx->pool = sh->memory_pool;
     tts_ctx->fhnd = switch_core_alloc(tts_ctx->pool, sizeof(switch_file_handle_t));
     tts_ctx->voice_name = switch_core_strdup(tts_ctx->pool, voice);
-    tts_ctx->lang_code = (globals.fl_voice_name_as_lang && voice ? switch_core_strdup(sh->memory_pool, lang2bcp47(voice)) : "en-gb");
+    tts_ctx->lang_code = (globals.fl_voice_name_as_lang && voice) ? switch_core_strdup(sh->memory_pool, lang2bcp47(voice)) : "en-gb";
     tts_ctx->channels = channels;
     tts_ctx->samplerate = samplerate;
     tts_ctx->dst_file = NULL;
@@ -228,14 +261,21 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
     sh->private_info = tts_ctx;
 
     if((status = switch_buffer_create_dynamic(&tts_ctx->curl_recv_buffer, 1024, 8192, globals.file_size_max)) != SWITCH_STATUS_SUCCESS) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "switch_buffer_create_dynamic() fail\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "switch_buffer_create_dynamic()\n");
+        goto out;
     }
 
     if(!globals.fl_cache_enabled) {
         switch_uuid_str((char *)name_uuid, sizeof(name_uuid));
-        tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s", globals.cache_path, SWITCH_PATH_SEPARATOR, name_uuid, globals.file_ext);
+        tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%sgoogle-%s.%s",
+                                                globals.tmp_path,
+                                                SWITCH_PATH_SEPARATOR,
+                                                name_uuid,
+                                                globals.file_ext
+                            );
     }
 
+out:
     return status;
 }
 
@@ -259,7 +299,7 @@ static switch_status_t speech_close(switch_speech_handle_t *sh, switch_speech_fl
 }
 
 static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, switch_speech_flag_t *flags) {
-    tts_ctx_t *tts_ctx = (tts_ctx_t *) sh->private_info;
+    tts_ctx_t *tts_ctx = (tts_ctx_t *)sh->private_info;
     switch_status_t status = SWITCH_STATUS_SUCCESS;
     char digest[SWITCH_MD5_DIGEST_STRING_SIZE + 1] = { 0 };
     const void *ptr = NULL;
@@ -269,14 +309,19 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
 
     if(!tts_ctx->dst_file) {
         switch_md5_string(digest, (void *) text, strlen(text));
-        tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s", globals.cache_path, SWITCH_PATH_SEPARATOR, digest, globals.file_ext);
+        tts_ctx->dst_file = switch_core_sprintf(sh->memory_pool, "%s%s%s.%s",
+                                                globals.cache_path,
+                                                SWITCH_PATH_SEPARATOR,
+                                                digest,
+                                                globals.file_ext
+                            );
     }
 
     if(switch_file_exists(tts_ctx->dst_file, tts_ctx->pool) == SWITCH_STATUS_SUCCESS) {
-        if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate, (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), NULL)) != SWITCH_STATUS_SUCCESS) {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't open file: %s\n", tts_ctx->dst_file);
-            status = SWITCH_STATUS_FALSE;
-            goto out;
+        if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate,
+                                           (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file: %s\n", tts_ctx->dst_file);
+            switch_goto_status(SWITCH_STATUS_FALSE, out);
         }
     } else {
         switch_buffer_zero(tts_ctx->curl_recv_buffer);
@@ -284,17 +329,18 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
         recv_len = switch_buffer_peek_zerocopy(tts_ctx->curl_recv_buffer, &ptr);
         if(status == SWITCH_STATUS_SUCCESS) {
             if((status = extract_audio(tts_ctx, (char *)ptr, recv_len)) == SWITCH_STATUS_SUCCESS) {
-                if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate, (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), NULL)) != SWITCH_STATUS_SUCCESS) {
-                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't open file: %s\n", tts_ctx->dst_file);
-                    goto out;
+                if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate,
+                                                   (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
+                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file: %s\n", tts_ctx->dst_file);
+                    switch_goto_status(SWITCH_STATUS_FALSE, out);
                 }
             } else {
-                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't extract media!\n");
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to extract media\n");
                 status = SWITCH_STATUS_FALSE;
             }
         } else {
             if(globals.fl_log_http_error && recv_len > 0) {
-                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Service response: %s\n", (char *)ptr);
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Services response: %s\n", (char *)ptr);
             }
         }
     }
@@ -317,8 +363,8 @@ static switch_status_t speech_read_tts(switch_speech_handle_t *sh, void *data, s
         return SWITCH_STATUS_FALSE;
     }
 
-    *data_len = (len * 2);
-    if(data_len == 0) {
+    *data_len = (len * sizeof(int16_t));
+    if(!data_len) {
         switch_core_file_close(tts_ctx->fhnd);
         return SWITCH_STATUS_BREAK;
     }
@@ -328,6 +374,7 @@ static switch_status_t speech_read_tts(switch_speech_handle_t *sh, void *data, s
 
 static void speech_flush_tts(switch_speech_handle_t *sh) {
     tts_ctx_t *tts_ctx = (tts_ctx_t *) sh->private_info;
+
     assert(tts_ctx != NULL);
 
     if(tts_ctx->fhnd != NULL && tts_ctx->fhnd->file_interface != NULL) {
@@ -341,9 +388,9 @@ static void speech_text_param_tts(switch_speech_handle_t *sh, char *param, const
     assert(tts_ctx != NULL);
 
     if(strcasecmp(param, "lang") == 0) {
-        if(val) {  tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, lang2bcp47(val)); }
+        if(val) { tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, lang2bcp47(val)); }
     } else if(strcasecmp(param, "gender") == 0) {
-        if(val) {  tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, fmt_gemder2voice(val)); }
+        if(val) { tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, fmt_gemder2voice(val)); }
     }
 }
 
@@ -356,24 +403,22 @@ static void speech_float_param_tts(switch_speech_handle_t *sh, char *param, doub
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------------------------------------------------------------------------
-#define CONFIG_NAME "google_tts.conf"
 SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     switch_status_t status = SWITCH_STATUS_SUCCESS;
     switch_xml_t cfg, xml, settings, param;
-
     switch_speech_interface_t *speech_interface;
 
     memset(&globals, 0, sizeof(globals));
 
-    if((xml = switch_xml_open_cfg(CONFIG_NAME, &cfg, NULL)) == NULL) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't open configuration file: %s\n", CONFIG_NAME);
+    if((xml = switch_xml_open_cfg(MOD_CONFIG_NAME, &cfg, NULL)) == NULL) {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open configuration: %s\n", MOD_CONFIG_NAME);
         switch_goto_status(SWITCH_STATUS_GENERR, out);
     }
 
     if((settings = switch_xml_child(cfg, "settings"))) {
         for (param = switch_xml_child(settings, "param"); param; param = param->next) {
-            char *var = (char *) switch_xml_attr_soft(param, "name");
-            char *val = (char *) switch_xml_attr_soft(param, "value");
+            char *var = (char *)switch_xml_attr_soft(param, "name");
+            char *val = (char *)switch_xml_attr_soft(param, "value");
 
             if(!strcasecmp(var, "api-url")) {
                 if(val) globals.api_url = switch_core_strdup(pool, val);
@@ -408,19 +453,19 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     }
 
     if(!globals.api_url) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Invalid parameter: api-url\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Missing required parameter: api-url\n");
         switch_goto_status(SWITCH_STATUS_GENERR, out);
     }
     if(!globals.api_key) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Invalid parameter: api-key\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Missing required parameter: api-key\n");
         switch_goto_status(SWITCH_STATUS_GENERR, out);
     }
 
     globals.tmp_path = SWITCH_GLOBAL_dirs.temp_dir;
     globals.api_url_ep = switch_string_replace(globals.api_url, "${api-key}", globals.api_key);
     globals.cache_path = (globals.cache_path == NULL ? "/tmp/google-tts-cache" : globals.cache_path);
-    globals.opt_gender = fmt_gemder2voice( (globals.opt_gender == NULL ? "female" : globals.opt_gender) );
-    globals.opt_encoding = fmt_enct2enct( (globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding) );
+    globals.opt_gender = fmt_gemder2voice(globals.opt_gender == NULL ? "female" : globals.opt_gender);
+    globals.opt_encoding = fmt_enct2enct(globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding);
     globals.file_size_max = globals.file_size_max > 0 ? globals.file_size_max : FILE_SIZE_MAX;
     globals.file_ext = fmt_enct2fext(globals.opt_encoding);
 
@@ -446,7 +491,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     speech_interface->speech_numeric_param_tts = speech_numeric_param_tts;
     speech_interface->speech_float_param_tts = speech_float_param_tts;
 
-    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "GoogleTTS-%s\n", VERSION);
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "GoogleTTS (%s)\n", MOD_VERSION);
 out:
     if(xml) {
         switch_xml_free(xml);

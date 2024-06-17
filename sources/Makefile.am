@@ -4,7 +4,7 @@ MODNAME=mod_google_tts
 
 mod_LTLIBRARIES = mod_google_tts.la
 mod_google_tts_la_SOURCES  = mod_google_tts.c utils.c
-mod_google_tts_la_CFLAGS   = $(AM_CFLAGS) -I. -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-label -Wno-declaration-after-statement -Wno-switch
+mod_google_tts_la_CFLAGS   = $(AM_CFLAGS) -I.
 mod_google_tts_la_LIBADD   = $(switch_builddir)/libfreeswitch.la
 mod_google_tts_la_LDFLAGS  = -avoid-version -module -no-undefined -shared
 
