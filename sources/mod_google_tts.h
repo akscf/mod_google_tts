@@ -24,10 +24,8 @@
 
 #include <switch.h>
 #include <switch_curl.h>
-#include <stdint.h>
-#include <string.h>
 
-#define MOD_VERSION         "1.0_gcp_tts_api_v1_http"
+#define MOD_VERSION         "1.0_gcp_api_v1"
 #define MOD_CONFIG_NAME     "google_tts.conf"
 #define FILE_SIZE_MAX       (2*1024*1024)
 #define BASE64_DEC_SZ(n)    ((n*3)/4)
@@ -49,10 +47,10 @@ typedef struct {
 
 
 /* utils.c */
-const char *lang2bcp47(const char *lng);
-const char *fmt_gemder2voice(const char *gender);
-const char *fmt_enct2enct(const char *fmt);
-const char *fmt_enct2fext(const char *fmt);
+char *lang2bcp47(const char *lng);
+char *fmt_enct2fext(const char *fmt);
+char *fmt_gender(const char *gender);
+char *fmt_encode(const char *fmt);
 
 char *strnstr(const char *s, const char *find, size_t slen);
 char *escape_squotes(const char *string);

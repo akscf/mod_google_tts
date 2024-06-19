@@ -21,7 +21,7 @@
  */
 #include "mod_google_tts.h"
 
-const char *lang2bcp47(const char *lng) {
+char *lang2bcp47(const char *lng) {
     if(strcasecmp(lng, "en") == 0) { return "en-gb"; }
     if(strcasecmp(lng, "de") == 0) { return "de-de"; }
     if(strcasecmp(lng, "es") == 0) { return "es-es"; }
@@ -30,13 +30,13 @@ const char *lang2bcp47(const char *lng) {
     return (char *)lng;
 }
 
-const char *fmt_gemder2voice(const char *gender) {
-    if(strcasecmp(gender, "male") == 0) { return "MALE"; }
-    if(strcasecmp(gender, "female") == 0) { return "FEMALE"; }
+char *fmt_gender(const char *gender) {
+    if(strcasecmp(gender, "male") == 0)     { return "MALE"; }
+    if(strcasecmp(gender, "female") == 0)   { return "FEMALE"; }
     return (char *)gender;
 }
 
-const char *fmt_enct2enct(const char *fmt) {
+char *fmt_encode(const char *fmt) {
     if(strcasecmp(fmt, "mp3") == 0)  { return "MP3"; }
     if(strcasecmp(fmt, "wav") == 0)  { return "LINEAR16"; }
     if(strcasecmp(fmt, "ulaw") == 0) { return "MULAW"; }
@@ -44,7 +44,7 @@ const char *fmt_enct2enct(const char *fmt) {
     return (char *)fmt;
 }
 
-const char *fmt_enct2fext(const char *fmt) {
+char *fmt_enct2fext(const char *fmt) {
     if(strcasecmp(fmt, "mp3") == 0)      { return "mp3"; }
     if(strcasecmp(fmt, "linear16") == 0) { return "wav"; }
     if(strcasecmp(fmt, "mulaw") == 0)    { return "ulaw"; }

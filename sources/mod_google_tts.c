@@ -18,24 +18,25 @@
  *  Konstantin Alexandrin <akscfx@gmail.com>
  *
  *
- * mod_google_tts.c -- google tts service interface
+ * mod_google_tts.c -- google text-to-speech service interface
  *
- * Provides an interface to use the Google TTS service in the Freeswitch.
+ * Provides Google TTS service for the Freeswitch.
+ * https://cloud.google.com/text-to-speech/docs/reference/rest
  *
  */
 #include "mod_google_tts.h"
 
 static struct {
-    const char              *file_ext;
-    const char              *cache_path;
-    const char              *tmp_path;
-    const char              *opt_gender;
-    const char              *opt_encoding;
-    const char              *user_agent;
-    const char              *api_url;
-    const char              *api_key;
-    const char              *proxy;
-    const char              *proxy_credentials;
+    char                    *file_ext;
+    char                    *cache_path;
+    char                    *tmp_path;
+    char                    *opt_gender;
+    char                    *opt_encoding;
+    char                    *user_agent;
+    char                    *api_url;
+    char                    *api_key;
+    char                    *proxy;
+    char                    *proxy_credentials;
     char                    *api_url_ep;
     uint32_t                file_size_max;
     uint32_t                request_timeout;        // seconds
@@ -216,7 +217,7 @@ static switch_status_t extract_audio(tts_ctx_t *tts_ctx, char *buf_in, uint32_t 
 
     len = switch_b64_decode(ptr, buf_out, dec_len);
     if(len != dec_len) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "b64_decode: (len != dec_len)\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "switch_b64_decode: (len != dec_len)\n");
         dec_len = len;
     }
 
@@ -349,7 +350,7 @@ out:
 }
 
 static switch_status_t speech_read_tts(switch_speech_handle_t *sh, void *data, size_t *data_len, switch_speech_flag_t *flags) {
-    tts_ctx_t *tts_ctx = (tts_ctx_t *) sh->private_info;
+    tts_ctx_t *tts_ctx = (tts_ctx_t *)sh->private_info;
     size_t len = (*data_len / sizeof(int16_t));
 
     assert(tts_ctx != NULL);
@@ -373,7 +374,7 @@ static switch_status_t speech_read_tts(switch_speech_handle_t *sh, void *data, s
 }
 
 static void speech_flush_tts(switch_speech_handle_t *sh) {
-    tts_ctx_t *tts_ctx = (tts_ctx_t *) sh->private_info;
+    tts_ctx_t *tts_ctx = (tts_ctx_t *)sh->private_info;
 
     assert(tts_ctx != NULL);
 
@@ -383,14 +384,14 @@ static void speech_flush_tts(switch_speech_handle_t *sh) {
 }
 
 static void speech_text_param_tts(switch_speech_handle_t *sh, char *param, const char *val) {
-    tts_ctx_t *tts_ctx = (tts_ctx_t *) sh->private_info;
+    tts_ctx_t *tts_ctx = (tts_ctx_t *)sh->private_info;
 
     assert(tts_ctx != NULL);
 
     if(strcasecmp(param, "lang") == 0) {
-        if(val) { tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, lang2bcp47(val)); }
+        if(val) tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, lang2bcp47(val));
     } else if(strcasecmp(param, "gender") == 0) {
-        if(val) { tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, fmt_gemder2voice(val)); }
+        if(val) tts_ctx->gender = switch_core_strdup(sh->memory_pool, fmt_gender(val));
     }
 }
 
@@ -428,7 +429,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
                 if(val) globals.cache_path = switch_core_strdup(pool, val);
             } else if(!strcasecmp(var, "gender")) {
                 if(val) globals.opt_gender = switch_core_strdup(pool, val);
-            } else if(!strcasecmp(var, "encoding-format")) {
+            } else if(!strcasecmp(var, "encoding")) {
                 if(val) globals.opt_encoding = switch_core_strdup(pool, val);
             } else if(!strcasecmp(var, "user-agent")) {
                 if(val) globals.user_agent = switch_core_strdup(pool, val);
@@ -464,8 +465,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
     globals.tmp_path = SWITCH_GLOBAL_dirs.temp_dir;
     globals.api_url_ep = switch_string_replace(globals.api_url, "${api-key}", globals.api_key);
     globals.cache_path = (globals.cache_path == NULL ? "/tmp/google-tts-cache" : globals.cache_path);
-    globals.opt_gender = fmt_gemder2voice(globals.opt_gender == NULL ? "female" : globals.opt_gender);
-    globals.opt_encoding = fmt_enct2enct(globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding);
+    globals.opt_gender = fmt_gender(globals.opt_gender == NULL ? "female" : globals.opt_gender);
+    globals.opt_encoding = fmt_encode(globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding);
     globals.file_size_max = globals.file_size_max > 0 ? globals.file_size_max : FILE_SIZE_MAX;
     globals.file_ext = fmt_enct2fext(globals.opt_encoding);
 
