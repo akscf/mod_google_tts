@@ -1,5 +1,5 @@
 <p>
-  Provides Google TTS service for the Freeswitch (based on v1-rest api) <br>
+  Provides the ability to use Google TTS service in the Freeswitch (rest api). <br>
 </p>
 
 ### Usage example

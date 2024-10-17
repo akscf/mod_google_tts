@@ -18,10 +18,11 @@
  *  Konstantin Alexandrin <akscfx@gmail.com>
  *
  *
- * mod_google_tts.c -- google text-to-speech service interface
- *
- * Provides Google TTS service for the Freeswitch.
+ * Provides the ability to use Google TTS service in the Freeswitch
  * https://cloud.google.com/text-to-speech/docs/reference/rest
+ *
+ * Development repository:
+ * https://github.com/akscf/mod_google_tts
  *
  */
 #include "mod_google_tts.h"
