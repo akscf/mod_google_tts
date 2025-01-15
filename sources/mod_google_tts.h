@@ -25,7 +25,7 @@
 #include <switch.h>
 #include <switch_curl.h>
 
-#define MOD_VERSION         "1.0_gcp_api_v1"
+#define MOD_VERSION         "1.0.1_gcp_api_v1"
 #define MOD_CONFIG_NAME     "google_tts.conf"
 #define FILE_SIZE_MAX       (2*1024*1024)
 #define BASE64_DEC_SZ(n)    ((n*3)/4)
@@ -43,6 +43,7 @@ typedef struct {
     uint32_t                samplerate;
     uint32_t                channels;
     size_t                  curl_send_buffer_len;
+    uint8_t                 fl_cache_enabled;
 } tts_ctx_t;
 
 
