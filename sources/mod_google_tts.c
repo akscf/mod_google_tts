@@ -18,7 +18,7 @@
  *  Konstantin Alexandrin <akscfx@gmail.com>
  *
  *
- * Provides the ability to use Google TTS service in the Freeswitch
+ * Google TTS service in the Freeswitch
  * https://cloud.google.com/text-to-speech/docs/reference/rest
  *
  * Development repository:
