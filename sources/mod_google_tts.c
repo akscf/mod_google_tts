@@ -38,7 +38,6 @@ static struct {
     char                    *api_key;
     char                    *proxy;
     char                    *proxy_credentials;
-    char                    *api_url_ep;
     uint32_t                file_size_max;
     uint32_t                request_timeout;        // seconds
     uint32_t                connect_timeout;        // seconds
@@ -85,13 +84,19 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     const char *ygender = (!globals.fl_voice_name_as_lang && tts_ctx->voice_name) ? tts_ctx->voice_name : NULL;
     char *pdata = NULL;
     char *qtext = NULL;
+    char *epurl = NULL;
 
     if(text) {
         qtext = escape_squotes(text);
     }
 
-    pdata = switch_mprintf(
-                "{'input':{'text':'%s'},'voice':{'ssmlGender':'%s', 'languageCode':'%s'},'audioConfig':{'audioEncoding':'%s', 'sampleRateHertz':'%d'}}\n\n",
+    if(tts_ctx->api_key) {
+        epurl = switch_string_replace(globals.api_url, "${api-key}", tts_ctx->api_key);
+    } else {
+        epurl = strdup(globals.api_url);
+    }
+
+    pdata = switch_mprintf( "{'input':{'text':'%s'},'voice':{'ssmlGender':'%s', 'languageCode':'%s'},'audioConfig':{'audioEncoding':'%s', 'sampleRateHertz':'%d'}}\n\n",
                 qtext ? qtext : "",
                 ygender ? ygender : xgender,
                 tts_ctx->lang_code,
@@ -99,8 +104,8 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
                 tts_ctx->samplerate
             );
 
-#ifdef GTTS_DEBUG
-    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "CURL: URL=[%s], PDATA=[%s]\n", globals.api_url_ep, pdata);
+#ifdef MOD_GTTS_DEBUG
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "CURL: URL=[%s], PDATA=[%s]\n", epurl, pdata);
 #endif
 
     tts_ctx->curl_send_buffer_len = strlen(pdata);
@@ -132,7 +137,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
     if(globals.user_agent) {
         switch_curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, globals.user_agent);
     }
-    if(strncasecmp(globals.api_url_ep, "https", 5) == 0) {
+    if(strncasecmp(epurl, "https", 5) == 0) {
         switch_curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
         switch_curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
     }
@@ -147,7 +152,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
         switch_curl_easy_setopt(curl_handle, CURLOPT_PROXY, globals.proxy);
     }
 
-    switch_curl_easy_setopt(curl_handle, CURLOPT_URL, globals.api_url_ep);
+    switch_curl_easy_setopt(curl_handle, CURLOPT_URL, epurl);
 
     curl_ret = switch_curl_easy_perform(curl_handle);
     if(!curl_ret) {
@@ -173,6 +178,7 @@ static switch_status_t curl_perform(tts_ctx_t *tts_ctx, char *text) {
 
     switch_safe_free(pdata);
     switch_safe_free(qtext);
+    switch_safe_free(epurl);
     return status;
 }
 
@@ -251,10 +257,12 @@ static switch_status_t speech_open(switch_speech_handle_t *sh, const char *voice
     tts_ctx_t *tts_ctx = NULL;
 
     tts_ctx = switch_core_alloc(sh->memory_pool, sizeof(tts_ctx_t));
+
     tts_ctx->pool = sh->memory_pool;
     tts_ctx->fhnd = switch_core_alloc(tts_ctx->pool, sizeof(switch_file_handle_t));
     tts_ctx->voice_name = switch_core_strdup(tts_ctx->pool, voice);
     tts_ctx->lang_code = (globals.fl_voice_name_as_lang && voice) ? switch_core_strdup(sh->memory_pool, lang2bcp47(voice)) : "en-gb";
+    tts_ctx->api_key = globals.api_key;
     tts_ctx->channels = channels;
     tts_ctx->samplerate = samplerate;
     tts_ctx->fl_cache_enabled = globals.fl_cache_enabled;
@@ -310,7 +318,7 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
     if(switch_file_exists(tts_ctx->dst_file, tts_ctx->pool) == SWITCH_STATUS_SUCCESS) {
         if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate,
                                            (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file: %s\n", tts_ctx->dst_file);
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file (%s)\n", tts_ctx->dst_file);
             switch_goto_status(SWITCH_STATUS_FALSE, out);
         }
     } else {
@@ -321,7 +329,7 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
             if((status = extract_audio(tts_ctx, (char *)ptr, recv_len)) == SWITCH_STATUS_SUCCESS) {
                 if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate,
                                                    (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
-                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file: %s\n", tts_ctx->dst_file);
+                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file (%s)\n", tts_ctx->dst_file);
                     switch_goto_status(SWITCH_STATUS_FALSE, out);
                 }
             } else {
@@ -377,7 +385,9 @@ static void speech_text_param_tts(switch_speech_handle_t *sh, char *param, const
 
     assert(tts_ctx != NULL);
 
-    if(strcasecmp(param, "lang") == 0) {
+    if(strcasecmp(param, "key") == 0) {
+        if(val) {  tts_ctx->api_key = switch_core_strdup(sh->memory_pool, val); }
+    } else if(strcasecmp(param, "lang") == 0) {
         if(val) tts_ctx->lang_code = switch_core_strdup(sh->memory_pool, lang2bcp47(val));
     } else if(strcasecmp(param, "gender") == 0) {
         if(val) tts_ctx->gender = switch_core_strdup(sh->memory_pool, fmt_gender(val));
@@ -448,22 +458,13 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_google_tts_load) {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Missing required parameter: api-url\n");
         switch_goto_status(SWITCH_STATUS_GENERR, out);
     }
-    if(!globals.api_key) {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Missing required parameter: api-key\n");
-        switch_goto_status(SWITCH_STATUS_GENERR, out);
-    }
 
     globals.tmp_path = SWITCH_GLOBAL_dirs.temp_dir;
-    globals.api_url_ep = switch_string_replace(globals.api_url, "${api-key}", globals.api_key);
     globals.cache_path = (globals.cache_path == NULL ? "/tmp/google-tts-cache" : globals.cache_path);
     globals.opt_gender = fmt_gender(globals.opt_gender == NULL ? "female" : globals.opt_gender);
     globals.opt_encoding = fmt_encode(globals.opt_encoding == NULL ? "mp3" : globals.opt_encoding);
     globals.file_size_max = globals.file_size_max > 0 ? globals.file_size_max : FILE_SIZE_MAX;
     globals.file_ext = fmt_enct2fext(globals.opt_encoding);
-
-    if(!globals.api_url_ep) {
-        globals.api_url_ep = strdup(globals.api_key);
-    }
 
     if(switch_directory_exists(globals.cache_path, NULL) != SWITCH_STATUS_SUCCESS) {
         switch_dir_make(globals.cache_path, SWITCH_FPROT_OS_DEFAULT, NULL);
@@ -492,8 +493,6 @@ out:
 }
 
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_google_tts_shutdown) {
-
-    switch_safe_free(globals.api_url_ep);
 
     return SWITCH_STATUS_SUCCESS;
 }

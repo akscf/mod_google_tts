@@ -29,7 +29,8 @@
 #define MOD_CONFIG_NAME     "google_tts.conf"
 #define FILE_SIZE_MAX       (2*1024*1024)
 #define BASE64_DEC_SZ(n)    ((n*3)/4)
-//#define GTTS_DEBUG
+
+//#define MOD_GTTS_DEBUG
 
 typedef struct {
     switch_memory_pool_t    *pool;
@@ -40,6 +41,7 @@ typedef struct {
     char                    *gender;
     char                    *voice_name;
     char                    *dst_file;
+    char                    *api_key;
     uint32_t                samplerate;
     uint32_t                channels;
     size_t                  curl_send_buffer_len;
