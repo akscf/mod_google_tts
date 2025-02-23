@@ -316,32 +316,35 @@ static switch_status_t speech_feed_tts(switch_speech_handle_t *sh, char *text, s
     }
 
     if(switch_file_exists(tts_ctx->dst_file, tts_ctx->pool) == SWITCH_STATUS_SUCCESS) {
-        if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate,
-                                           (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file (%s)\n", tts_ctx->dst_file);
-            switch_goto_status(SWITCH_STATUS_FALSE, out);
-        }
-    } else {
-        switch_buffer_zero(tts_ctx->curl_recv_buffer);
-        status = curl_perform(tts_ctx , text);
-        recv_len = switch_buffer_peek_zerocopy(tts_ctx->curl_recv_buffer, &ptr);
-        if(status == SWITCH_STATUS_SUCCESS) {
-            if((status = extract_audio(tts_ctx, (char *)ptr, recv_len)) == SWITCH_STATUS_SUCCESS) {
-                if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate,
-                                                   (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
-                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file (%s)\n", tts_ctx->dst_file);
-                    switch_goto_status(SWITCH_STATUS_FALSE, out);
-                }
-            } else {
-                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to extract media\n");
-                status = SWITCH_STATUS_FALSE;
-            }
-        } else {
-            if(globals.fl_log_http_error && recv_len > 0) {
-                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Services response: %s\n", (char *)ptr);
-            }
+        if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate, (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) == SWITCH_STATUS_SUCCESS) {
+            goto out;
         }
     }
+
+#ifdef MOD_GTTS_DEBUG
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "language=[%s]\n", tts_ctx->lang_code);
+#endif
+
+    switch_buffer_zero(tts_ctx->curl_recv_buffer);
+    status = curl_perform(tts_ctx , text);
+    recv_len = switch_buffer_peek_zerocopy(tts_ctx->curl_recv_buffer, &ptr);
+
+    if(status == SWITCH_STATUS_SUCCESS) {
+        if((status = extract_audio(tts_ctx, (char *)ptr, recv_len)) == SWITCH_STATUS_SUCCESS) {
+            if((status = switch_core_file_open(tts_ctx->fhnd, tts_ctx->dst_file, tts_ctx->channels, tts_ctx->samplerate, (SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT), sh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to open file (%s)\n", tts_ctx->dst_file);
+                switch_goto_status(SWITCH_STATUS_FALSE, out);
+            }
+        } else {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Unable to extract media\n");
+            status = SWITCH_STATUS_FALSE;
+        }
+    } else {
+        if(globals.fl_log_http_error && recv_len > 0) {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Service response: %s\n", (char *)ptr);
+        }
+    }
+
 out:
     return status;
 }
